@@ -1,19 +1,79 @@
 package com.appstronautstudios.library;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
+import android.media.ExifInterface;
+import android.os.Build;
+import android.provider.Settings;
+import android.telephony.TelephonyManager;
+import android.view.View;
 
 import androidx.appcompat.app.AlertDialog;
 
 import com.appstronautstudios.consentmanager.R;
 
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
 
 public class AppstronautUtils {
+
+
+    public static String getDeviceId(Context context) {
+        return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+    }
+
+    public static String getDeviceName() {
+        String manufacturer = Build.MANUFACTURER;
+        String model = Build.MODEL;
+        if (model.toLowerCase().startsWith(manufacturer.toLowerCase())) {
+            return capitalize(model);
+        } else {
+            return capitalize(manufacturer) + " " + model;
+        }
+    }
+
+    public static String getVersionName(Context context) {
+        String version = "0.0";
+        try {
+            PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            version = pInfo.versionName;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return version;
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.length() == 0) {
+            return "";
+        }
+        char first = s.charAt(0);
+        if (Character.isUpperCase(first)) {
+            return s;
+        } else {
+            return Character.toUpperCase(first) + s.substring(1);
+        }
+    }
+
+    public static boolean isInTimeWindow(long target, long windowStart, long windowEnd) {
+        return target >= windowStart && target <= windowEnd;
+    }
 
     public static Date shiftUTCToLocalDatePreservingAllCalendarComponents(long utcTimestamp) {
         // Step 1: Interpret the UTC timestamp as a UTC calendar
@@ -63,6 +123,64 @@ public class AppstronautUtils {
         return calendar.getTime();
     }
 
+    public static String timestampToCsvDate(long timestamp) {
+        Date date = new Date(timestamp);
+        String outDate = null;
+        try {
+            SimpleDateFormat fmtOut = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+            outDate = fmtOut.format(date);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return outDate;
+    }
+
+    public static String timestampToSimpleDate(long timestamp) {
+        Date date = new Date(timestamp);
+        String outDate = null;
+        try {
+            SimpleDateFormat fmtOut = new SimpleDateFormat("yyyy/MM/dd", Locale.US);
+            outDate = fmtOut.format(date);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return outDate;
+    }
+
+    public static Date csvDateToDateObject(String dateString) {
+        Date outDate = null;
+        try {
+            SimpleDateFormat fmtOut = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
+            outDate = fmtOut.parse(dateString);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return outDate;
+    }
+
+    public static long getDaysSinceInstall(Context context) {
+        long installTs = System.currentTimeMillis();
+        PackageManager packMan = context.getPackageManager();
+        try {
+            PackageInfo pkgInfo = packMan.getPackageInfo(context.getPackageName(), 0);
+            installTs = pkgInfo.firstInstallTime;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - installTs);
+    }
+
+    public static String timeUntilAsString(Context context, long timestamp) {
+        long millisUntil = timestamp - System.currentTimeMillis();
+        long minutes = (millisUntil / (1000 * 60)) % 60;
+        long hours = (millisUntil / (1000 * 60 * 60));
+        return hours + "h " + minutes + "m";
+    }
+
     /**
      * 31.07.2025 - because of terrible foresight when we join strings for set storage in the
      * DB we don't actually check if our separator is in the set items themselves. This means
@@ -93,5 +211,133 @@ public class AppstronautUtils {
                 .setMessage(message)
                 .setPositiveButton(okButtonText, null)
                 .show();
+    }
+
+    private static int getRotationDegrees(int exifOrientation) {
+        switch (exifOrientation) {
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                return 90;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+                return 180;
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                return 270;
+            default:
+                return 0;
+        }
+    }
+
+    private static void spoofOnResume(Activity activity) {
+        // https://stackoverflow.com/a/15951960/740474
+        Intent intent = new Intent(activity, activity.getClass());
+        intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        activity.startActivity(intent);
+    }
+
+    public static String sanitizeStringForFirebase(String input) {
+        // sanitize illegal key characters
+        String sanitizedString = input;
+        sanitizedString = sanitizedString.replace(".", "");
+        sanitizedString = sanitizedString.replace("$", "");
+        sanitizedString = sanitizedString.replace("[", "");
+        sanitizedString = sanitizedString.replace("]", "");
+        sanitizedString = sanitizedString.replace("#", "");
+        sanitizedString = sanitizedString.replace("/", "");
+        // don't let them mess with the json structure
+        sanitizedString = sanitizedString.replace("{", "");
+        sanitizedString = sanitizedString.replace("}", "");
+        // remove useless characters
+        sanitizedString = sanitizedString.replace("\"", "");
+        sanitizedString = sanitizedString.replace("\'", "");
+        sanitizedString = sanitizedString.trim();
+
+        return sanitizedString;
+    }
+
+
+    public static String getSystemLocale(Context context) {
+        try {
+            final TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+            final String simCountry = tm.getSimCountryIso();
+            if (simCountry != null && simCountry.length() == 2) { // SIM country code is available
+                return simCountry.toLowerCase(Locale.US);
+            } else if (tm.getPhoneType() != TelephonyManager.PHONE_TYPE_CDMA) { // device is not 3G (would be unreliable)
+                String networkCountry = tm.getNetworkCountryIso();
+                if (networkCountry != null && networkCountry.length() == 2) { // network country code is available
+                    return networkCountry.toLowerCase(Locale.US);
+                } else {
+                    return "non-CDMA fail";
+                }
+            } else {
+                return "network & sim both fail";
+            }
+        } catch (Exception e) {
+            return e.getClass().getCanonicalName();
+        }
+    }
+
+    private static Bitmap viewToBitmap(View view) {
+        Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        view.draw(canvas);
+        return bitmap;
+    }
+
+    public static Bitmap getBitmapFromView(View view) {
+        // define a bitmap with the same size as the view
+        Bitmap returnedBitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_4444);
+        // bind a canvas to it
+        Canvas canvas = new Canvas(returnedBitmap);
+        // set background
+        Drawable bgDrawable = view.getBackground();
+        if (bgDrawable != null) {
+            // has background drawable, then draw it on the canvas
+            bgDrawable.draw(canvas);
+        } else {
+            // does not have background drawable, then draw white background on the canvas
+            canvas.drawColor(Color.TRANSPARENT);
+        }
+        // draw the view on the canvas
+        view.draw(canvas);
+        // return the bitmap
+        return returnedBitmap;
+    }
+
+
+    public static String getNumberString(double number, int sigFigs, boolean signed) {
+        DecimalFormatSymbols DFS = new DecimalFormatSymbols();
+        DFS.setDecimalSeparator('.');
+        DecimalFormat myFormatter;
+
+        switch (sigFigs) {
+            default:
+            case 0: {
+                myFormatter = new DecimalFormat("#");
+                break;
+            }
+            case 1: {
+                myFormatter = new DecimalFormat("#.#");
+                break;
+            }
+            case 2: {
+                myFormatter = new DecimalFormat("#.##");
+                break;
+            }
+            case 3: {
+                myFormatter = new DecimalFormat("#.###");
+                break;
+            }
+        }
+        myFormatter.setDecimalFormatSymbols(DFS);
+        if (signed) {
+            String sign = "-";
+            if (number > 0) {
+                sign = "+";
+            } else {
+                sign = "";
+            }
+            return sign + myFormatter.format(number);
+        } else {
+            return myFormatter.format(number);
+        }
     }
 }
