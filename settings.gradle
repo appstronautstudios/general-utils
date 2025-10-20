@@ -1,0 +1,3 @@
+rootProject.name = "GeneralUtils"
+include ':app'
+include ':library'
