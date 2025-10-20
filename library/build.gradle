@@ -37,7 +37,7 @@ afterEvaluate {
                 from components.release
                 groupId = 'com.github.appstronautstudios'
                 artifactId = 'generalutils'
-                version = '0.0.3'
+                version = '0.0.4'
             }
         }
     }

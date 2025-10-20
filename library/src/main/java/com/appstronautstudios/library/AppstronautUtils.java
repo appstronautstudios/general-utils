@@ -1,6 +1,7 @@
 package com.appstronautstudios.library;
 
 import android.app.Activity;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
@@ -10,15 +11,22 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.media.ExifInterface;
+import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
 import android.view.View;
+import android.webkit.MimeTypeMap;
 
 import androidx.appcompat.app.AlertDialog;
 
 import com.appstronautstudios.consentmanager.R;
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.SimpleDateFormat;
@@ -161,6 +169,48 @@ public class AppstronautUtils {
         return outDate;
     }
 
+    public static String sanitizeStringForCSV(String input) {
+        return input
+                .replace("\"", "")
+                .replace("\'", "")
+                .replace("\\", "");
+    }
+
+    public static byte[] getBytes(File file) throws IOException {
+        byte[] bytes = new byte[(int) file.length()];
+        BufferedInputStream bis = new BufferedInputStream(new FileInputStream(file));
+        DataInputStream dis = new DataInputStream(bis);
+        dis.readFully(bytes);
+        return bytes;
+    }
+
+    public static String getMimeType(Context context, Uri uri) {
+        String mimeType = null;
+
+        // Try using ContentResolver first
+        if (ContentResolver.SCHEME_CONTENT.equals(uri.getScheme())) {
+            ContentResolver contentResolver = context.getContentResolver();
+            mimeType = contentResolver.getType(uri);
+        }
+
+        // Fallback to file extension
+        if (mimeType == null) {
+            mimeType = getMimeType(uri.toString());
+        }
+
+        return mimeType;
+    }
+
+    public static String getMimeType(String url) {
+        // https://stackoverflow.com/a/8591230/740474
+        String type = null;
+        String extension = MimeTypeMap.getFileExtensionFromUrl(url);
+        if (extension != null) {
+            type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+        }
+        return type;
+    }
+
     public static long getDaysSinceInstall(Context context) {
         long installTs = System.currentTimeMillis();
         PackageManager packMan = context.getPackageManager();
@@ -172,13 +222,6 @@ public class AppstronautUtils {
         }
 
         return TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - installTs);
-    }
-
-    public static String timeUntilAsString(Context context, long timestamp) {
-        long millisUntil = timestamp - System.currentTimeMillis();
-        long minutes = (millisUntil / (1000 * 60)) % 60;
-        long hours = (millisUntil / (1000 * 60 * 60));
-        return hours + "h " + minutes + "m";
     }
 
     /**
