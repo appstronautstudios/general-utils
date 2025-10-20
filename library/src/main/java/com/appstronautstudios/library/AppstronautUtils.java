@@ -59,7 +59,7 @@ public class AppstronautUtils {
         return version;
     }
 
-    private static String capitalize(String s) {
+    public static String capitalize(String s) {
         if (s == null || s.length() == 0) {
             return "";
         }
@@ -213,7 +213,7 @@ public class AppstronautUtils {
                 .show();
     }
 
-    private static int getRotationDegrees(int exifOrientation) {
+    public static int getRotationDegrees(int exifOrientation) {
         switch (exifOrientation) {
             case ExifInterface.ORIENTATION_ROTATE_90:
                 return 90;
@@ -226,7 +226,7 @@ public class AppstronautUtils {
         }
     }
 
-    private static void spoofOnResume(Activity activity) {
+    public static void spoofOnResume(Activity activity) {
         // https://stackoverflow.com/a/15951960/740474
         Intent intent = new Intent(activity, activity.getClass());
         intent.setFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
@@ -275,7 +275,7 @@ public class AppstronautUtils {
         }
     }
 
-    private static Bitmap viewToBitmap(View view) {
+    public static Bitmap viewToBitmap(View view) {
         Bitmap bitmap = Bitmap.createBitmap(view.getWidth(), view.getHeight(), Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         view.draw(canvas);
