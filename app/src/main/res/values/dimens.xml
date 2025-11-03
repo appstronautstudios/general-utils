@@ -1,3 +1,7 @@
 <resources>
     <dimen name="fab_margin">16dp</dimen>
+
+    <dimen name="gu_item_margin">8dp</dimen>
+
+    <dimen name="gu_text_size_large">22sp</dimen>
 </resources>

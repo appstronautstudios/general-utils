@@ -10,7 +10,6 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
-import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -18,7 +17,9 @@ import android.telephony.TelephonyManager;
 import android.view.View;
 import android.webkit.MimeTypeMap;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
+import androidx.exifinterface.media.ExifInterface;
 
 import com.appstronautstudios.consentmanager.R;
 
@@ -30,17 +31,18 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 public class AppstronautUtils {
-
 
     public static String getDeviceId(Context context) {
         return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
@@ -68,7 +70,7 @@ public class AppstronautUtils {
     }
 
     public static String capitalize(String s) {
-        if (s == null || s.length() == 0) {
+        if (s == null || s.isEmpty()) {
             return "";
         }
         char first = s.charAt(0);
@@ -79,11 +81,158 @@ public class AppstronautUtils {
         }
     }
 
+    /**
+     * Generates an array of colours using Random(). These colours are true random and can be hues
+     * of black and gray and might end up with poor distinctiveness.
+     *
+     * @param size size of colour set to generate
+     * @return int colour array
+     */
+    private static int[] generateRandomColourSet(int size) {
+        int[] colours = new int[size];
+        Random rnd = new Random();
+
+        for (int i = 0; i < size; i++) {
+            colours[i] = Color.argb(
+                    255,
+                    rnd.nextInt(256),
+                    rnd.nextInt(256),
+                    rnd.nextInt(256)
+            );
+        }
+        return colours;
+    }
+
+    /**
+     * Generates an array of colours spaced evenly using HSV hue steps.
+     * Produces predictable, well-spaced colours.
+     *
+     * @param size size of colour set to generate
+     * @return int colour array
+     */
+    private static int[] generateDistinctColourSet(int size) {
+        int[] colours = new int[size];
+
+        float saturation = 0.6f;
+        float brightness = 0.85f;
+
+        for (int i = 0; i < size; i++) {
+            float hue = (360f / size) * i;
+            colours[i] = Color.HSVToColor(new float[]{hue, saturation, brightness});
+        }
+        return colours;
+    }
+
+    /**
+     * Generates a colour set prefixed by provided base colour set. Can fill out the remainder with
+     * either true random colours or HSV hue step colours.
+     *
+     * @param baseColourSet   any base colours to start the set with. Can be empty or null if unnecessary
+     * @param size            size of colour set to generate
+     * @param distinctColours if true, generate evenly spaced colours;
+     *                        otherwise generate random colours.
+     * @return - int colour array
+     */
+    public static int[] getColourSet(int[] baseColourSet, int size, boolean distinctColours) {
+        int[] result = new int[size];
+
+        // Copy all base colours needed from provided set (if present)
+        int baseCount;
+        if (baseColourSet != null) {
+            baseCount = Math.min(baseColourSet.length, size);
+        } else {
+            baseCount = 0;
+        }
+        if (baseCount > 0) {
+            System.arraycopy(baseColourSet, 0, result, 0, baseCount);
+        }
+
+        // Generate remaining colours (if necessary) and then copy them into the result set
+        int remaining = size - baseCount;
+        if (remaining > 0) {
+            int[] generated;
+            if (distinctColours) {
+                generated = generateDistinctColourSet(remaining);
+            } else {
+                generated = generateRandomColourSet(remaining);
+            }
+            System.arraycopy(generated, 0, result, baseCount, remaining);
+        }
+
+        return result;
+    }
+
+    /**
+     * Note this uses local time calendars for calculations NOT UTC
+     *
+     * @param startTimestamp - timestamp of where to start
+     * @param endTimestamp   - timestamp of where to end
+     * @param timeScale      - timescale to skip by. Valid values are "day", "month", "year"
+     * @param fake           - create a fake grouping irrespective of other entered data
+     * @return - ArrayList of Dates from the start of the startTimestamp day to end of the endTimestamp day
+     */
+    public static ArrayList<Date> setupNewXVals(long startTimestamp, long endTimestamp, String timeScale, boolean fake) {
+        ArrayList<Date> xValsRet = new ArrayList<>();
+
+        if (fake) {
+            // one fake entry for each month
+            Calendar cal = Calendar.getInstance();
+            cal.set(2019, Calendar.JANUARY, 1, 0, 0, 0);
+            cal.set(Calendar.MILLISECOND, 0);
+
+            for (int i = 0; i < 12; i++) {
+                Calendar temp = (Calendar) cal.clone();
+                temp.set(Calendar.MONTH, i);
+                xValsRet.add(temp.getTime());
+            }
+
+            return xValsRet;
+        }
+
+        Calendar beginCalendar = Calendar.getInstance();
+        Calendar finishCalendar = Calendar.getInstance();
+
+        beginCalendar.setTimeInMillis(startTimestamp);
+        beginCalendar.set(Calendar.HOUR_OF_DAY, 0);
+        beginCalendar.set(Calendar.MINUTE, 0);
+        beginCalendar.set(Calendar.SECOND, 0);
+        beginCalendar.set(Calendar.MILLISECOND, 0);
+
+        finishCalendar.setTimeInMillis(endTimestamp);
+        finishCalendar.set(Calendar.HOUR_OF_DAY, 23);
+        finishCalendar.set(Calendar.MINUTE, 59);
+        finishCalendar.set(Calendar.SECOND, 59);
+        finishCalendar.set(Calendar.MILLISECOND, 999);
+
+        // create xVals at intervals until we're at end date
+        while (beginCalendar.getTimeInMillis() <= finishCalendar.getTimeInMillis()) {
+            xValsRet.add(beginCalendar.getTime());
+
+            switch (timeScale) {
+                case "day":
+                    beginCalendar.add(Calendar.DATE, 1);
+                    break;
+                case "week":
+                    beginCalendar.add(Calendar.WEEK_OF_YEAR, 1);
+                    break;
+                case "month":
+                    beginCalendar.add(Calendar.MONTH, 1);
+                    break;
+                default:
+                    // better to crash if client supplies incorrect timescale than silently return
+                    // month or something as a default
+                    throw new IllegalArgumentException("Invalid timeScale: " + timeScale);
+            }
+        }
+
+        return xValsRet;
+    }
+
     public static boolean isInTimeWindow(long target, long windowStart, long windowEnd) {
         return target >= windowStart && target <= windowEnd;
     }
 
-    public static Date shiftUTCToLocalDatePreservingAllCalendarComponents(long utcTimestamp) {
+    public static Date utcDateToLocalMidnight(long utcTimestamp) {
         // Step 1: Interpret the UTC timestamp as a UTC calendar
         Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
         utcCal.setTimeInMillis(utcTimestamp);
@@ -225,18 +374,16 @@ public class AppstronautUtils {
     }
 
     /**
-     * 31.07.2025 - because of terrible foresight when we join strings for set storage in the
-     * DB we don't actually check if our separator is in the set items themselves. This means
-     * you can join a single tag like "rice, brown" and end up with two separate tags when you
-     * parse back out again.
+     * A string joined by the provided separator with duplicates removed. This function will also
+     * delete any instances of the provided separator in the collection before joining. Order is
+     * preserved
      *
-     * @param collection - collection of strings to join
-     * @param separator  - separator to join with
-     * @return - a string joined by the provided separator with no duplicates. This function will
-     * delete any instances of the provided separator in the collection before joining
+     * @param collection collection of strings to join
+     * @param separator  separator to join with
+     * @return joined string
      */
     public static String safeJoin(Collection<String> collection, String separator) {
-        Set<String> safeSet = new HashSet<>();
+        Set<String> safeSet = new LinkedHashSet<>();
         for (String setItem : collection) {
             String safeSetItem = setItem.replace(separator, "");
             safeSet.add(safeSetItem);
@@ -345,42 +492,51 @@ public class AppstronautUtils {
         return returnedBitmap;
     }
 
+    public static String getNumberString(double number, int decimalPlaces, boolean signed) {
+        return getNumberString(number, decimalPlaces, signed, false);
+    }
 
-    public static String getNumberString(double number, int sigFigs, boolean signed) {
+    public static String getNumberString(double number, int decimalPlaces, boolean signed, boolean forcedZero) {
+        DecimalFormat myFormatter = getDecimalFormat(decimalPlaces, forcedZero);
+
+        String result = myFormatter.format(number);
+
+        if (signed) {
+            if (number > 0) {
+                result = "+" + result;
+            } else if (number < 0) {
+                // number is negative, result already has "-"
+                // nothing to add
+            } else {
+                // number == 0
+                result = "+" + result;
+            }
+        }
+
+        return result;
+    }
+
+    public static @NonNull DecimalFormat getDecimalFormat(int decimalPlaces, boolean forcedZero) {
         DecimalFormatSymbols DFS = new DecimalFormatSymbols();
         DFS.setDecimalSeparator('.');
-        DecimalFormat myFormatter;
 
-        switch (sigFigs) {
-            default:
-            case 0: {
-                myFormatter = new DecimalFormat("#");
-                break;
-            }
-            case 1: {
-                myFormatter = new DecimalFormat("#.#");
-                break;
-            }
-            case 2: {
-                myFormatter = new DecimalFormat("#.##");
-                break;
-            }
-            case 3: {
-                myFormatter = new DecimalFormat("#.###");
-                break;
+        // Build pattern dynamically
+        StringBuilder pattern = new StringBuilder("#");
+        if (decimalPlaces > 0) {
+            pattern.append(".");
+            for (int i = 0; i < decimalPlaces; i++) {
+                // # would indicate optional zero. E.g. 1.2 with 3 decimal places would
+                // be 1.200 with forced zero and 1.2 with optional zero
+                if (forcedZero) {
+                    pattern.append("0");
+                } else {
+                    pattern.append("#");
+                }
             }
         }
+
+        DecimalFormat myFormatter = new DecimalFormat(pattern.toString());
         myFormatter.setDecimalFormatSymbols(DFS);
-        if (signed) {
-            String sign = "-";
-            if (number > 0) {
-                sign = "+";
-            } else {
-                sign = "";
-            }
-            return sign + myFormatter.format(number);
-        } else {
-            return myFormatter.format(number);
-        }
+        return myFormatter;
     }
 }
