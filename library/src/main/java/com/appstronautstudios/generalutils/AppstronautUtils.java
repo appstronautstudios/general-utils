@@ -1,4 +1,4 @@
-package com.appstronautstudios.library;
+package com.appstronautstudios.generalutils;
 
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -20,8 +20,6 @@ import android.webkit.MimeTypeMap;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.exifinterface.media.ExifInterface;
-
-import com.appstronautstudios.consentmanager.R;
 
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
@@ -124,6 +122,30 @@ public class AppstronautUtils {
     }
 
     /**
+     * Generates a colour set of true random colours
+     *
+     * @param size size of colour set to generate
+     * @return int colour array
+     * @see #getColourSet(int[], int)
+     */
+    public static int[] getColourSet(int size) {
+        return getColourSet(null, size);
+    }
+
+    /**
+     * Generates a colour set prefixed by provided base colour set. Remainder is filled out
+     * with true random colours
+     *
+     * @param baseColourSet any base colours to start the set with. Can be empty or null if unnecessary
+     * @param size          size of colour set to generate
+     * @return int colour array
+     * @see #getColourSet(int[], int, boolean)
+     */
+    public static int[] getColourSet(int[] baseColourSet, int size) {
+        return getColourSet(baseColourSet, size, false);
+    }
+
+    /**
      * Generates a colour set prefixed by provided base colour set. Can fill out the remainder with
      * either true random colours or HSV hue step colours.
      *
@@ -131,7 +153,7 @@ public class AppstronautUtils {
      * @param size            size of colour set to generate
      * @param distinctColours if true, generate evenly spaced colours;
      *                        otherwise generate random colours.
-     * @return - int colour array
+     * @return int colour array
      */
     public static int[] getColourSet(int[] baseColourSet, int size, boolean distinctColours) {
         int[] result = new int[size];
@@ -165,11 +187,11 @@ public class AppstronautUtils {
     /**
      * Note this uses local time calendars for calculations NOT UTC
      *
-     * @param startTimestamp - timestamp of where to start
-     * @param endTimestamp   - timestamp of where to end
-     * @param timeScale      - timescale to skip by. Valid values are "day", "month", "year"
-     * @param fake           - create a fake grouping irrespective of other entered data
-     * @return - ArrayList of Dates from the start of the startTimestamp day to end of the endTimestamp day
+     * @param startTimestamp timestamp of where to start
+     * @param endTimestamp   timestamp of where to end
+     * @param timeScale      timescale to skip by. Valid values are "day", "month", "year"
+     * @param fake           create a fake grouping irrespective of other entered data
+     * @return ArrayList of Dates from the start of the startTimestamp day to end of the endTimestamp day
      */
     public static ArrayList<Date> setupNewXVals(long startTimestamp, long endTimestamp, String timeScale, boolean fake) {
         ArrayList<Date> xValsRet = new ArrayList<>();
@@ -230,6 +252,20 @@ public class AppstronautUtils {
 
     public static boolean isInTimeWindow(long target, long windowStart, long windowEnd) {
         return target >= windowStart && target <= windowEnd;
+    }
+
+    public static boolean isSameDay(Date date1, Date date2) {
+        if (date1 == null || date2 == null) return false;
+
+        Calendar cal1 = Calendar.getInstance();
+        cal1.setTime(date1);
+
+        Calendar cal2 = Calendar.getInstance();
+        cal2.setTime(date2);
+
+        return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+                cal1.get(Calendar.MONTH) == cal2.get(Calendar.MONTH) &&
+                cal1.get(Calendar.DAY_OF_MONTH) == cal2.get(Calendar.DAY_OF_MONTH);
     }
 
     public static Date utcDateToLocalMidnight(long utcTimestamp) {
@@ -304,6 +340,24 @@ public class AppstronautUtils {
         }
 
         return outDate;
+    }
+
+    public static String timestampToReadableDateString(long timeStamp) {
+        try {
+            SimpleDateFormat fmtOut = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+            return fmtOut.format(new Date(timeStamp));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static String timestampToReadableTimeString(long timeStamp) {
+        try {
+            SimpleDateFormat fmtOut = new SimpleDateFormat("h:mm aa", Locale.getDefault());
+            return fmtOut.format(new Date(timeStamp));
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     public static Date csvDateToDateObject(String dateString) {

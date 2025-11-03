@@ -7,7 +7,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.appstronautstudios.library.AppstronautUtils;
+import com.appstronautstudios.generalutils.AppstronautUtils;
+import com.appstronautstudios.generalutils.Boxer;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -25,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
         TextView miscDataTV = findViewById(R.id.misc_data);
         TextView stringDataTV = findViewById(R.id.string_data);
         TextView dateDataTV = findViewById(R.id.date_data);
+        TextView boxerDataTV = findViewById(R.id.boxer_data);
         container = findViewById(R.id.container);
 
         // misc data example
@@ -52,18 +54,51 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<String> dateData = new ArrayList<>();
         long now = System.currentTimeMillis();
         Date today = new Date();
+        Date tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000); // next day
         Date shiftedUTC = AppstronautUtils.utcDateToLocalMidnight(now);
         dateData.add("Current timestamp: " + now);
         dateData.add("isInTimeWindow(now, now-1000, now+1000): " + AppstronautUtils.isInTimeWindow(now, now - 1000, now + 1000));
         dateData.add("isInTimeWindow(now, now+1000, now+2000): " + AppstronautUtils.isInTimeWindow(now, now + 1000, now + 2000));
+        dateData.add("isSameDay(today, today) [same timestamp]: " + AppstronautUtils.isSameDay(today, today));
+        dateData.add("isSameDay(today, tomorrow) [next day]: " + AppstronautUtils.isSameDay(today, tomorrow));
         dateData.add("utcDateToLocalMidnight(now): " + shiftedUTC);
         dateData.add("startOfDate(today): " + AppstronautUtils.startOfDate(today));
         dateData.add("endOfDate(today): " + AppstronautUtils.endOfDate(today));
         dateData.add("timestampToCsvDate(now): " + AppstronautUtils.timestampToCsvDate(now));
         dateData.add("timestampToSimpleDate(now): " + AppstronautUtils.timestampToSimpleDate(now));
+        dateData.add("timestampToReadableDateString(now): " + AppstronautUtils.timestampToReadableDateString(now));
+        dateData.add("timestampToReadableTimeString(now): " + AppstronautUtils.timestampToReadableTimeString(now));
         String csvStr = "2025-11-03 07:00";
         dateData.add("csvDateToDateObject(\"" + csvStr + "\"): " + AppstronautUtils.csvDateToDateObject(csvStr));
         dateDataTV.setText(AppstronautUtils.safeJoin(dateData, "\n"));
+
+        // boxer data example
+        ArrayList<String> boxerData = new ArrayList<>();
+        Integer nullInt = null;
+        Integer intVal = 42;
+        Double nullDouble = null;
+        Double doubleVal = 3.14159;
+        Float nullFloat = null;
+        Float floatVal = 2.5f;
+        Long nullLong = null;
+        Long longVal = 987654321L;
+        Short nullShort = null;
+        Short shortVal = 12;
+        Byte nullByte = null;
+        Byte byteVal = 8;
+        boxerData.add("unbox(Integer null) → " + Boxer.unbox(nullInt));          // expect 0
+        boxerData.add("unbox(Integer 42) → " + Boxer.unbox(intVal));             // expect 42
+        boxerData.add("unbox(Double null) → " + Boxer.unbox(nullDouble));        // expect 0.0
+        boxerData.add("unbox(Double 3.14159) → " + Boxer.unbox(doubleVal));      // expect 3.14159
+        boxerData.add("unbox(Float null) → " + Boxer.unbox(nullFloat));          // expect 0.0
+        boxerData.add("unbox(Float 2.5f) → " + Boxer.unbox(floatVal));           // expect 2.5
+        boxerData.add("unbox(Long null) → " + Boxer.unbox(nullLong));            // expect 0
+        boxerData.add("unbox(Long 987654321) → " + Boxer.unbox(longVal));        // expect 987654321
+        boxerData.add("unbox(Short null) → " + Boxer.unbox(nullShort));          // expect 0
+        boxerData.add("unbox(Short 12) → " + Boxer.unbox(shortVal));             // expect 12
+        boxerData.add("unbox(Byte null) → " + Boxer.unbox(nullByte));            // expect 0
+        boxerData.add("unbox(Byte 8) → " + Boxer.unbox(byteVal));                // expect 8
+        boxerDataTV.setText(AppstronautUtils.safeJoin(boxerData, "\n"));
 
         // colour example
         findViewById(R.id.btnDistinct).setOnClickListener(v -> {
