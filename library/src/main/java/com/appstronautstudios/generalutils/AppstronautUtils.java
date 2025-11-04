@@ -7,13 +7,16 @@ import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
+import android.util.Log;
 import android.view.View;
 import android.webkit.MimeTypeMap;
 
@@ -25,6 +28,7 @@ import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -185,7 +189,10 @@ public class AppstronautUtils {
     }
 
     /**
-     * Note this uses local time calendars for calculations NOT UTC
+     * Generates a set of dates to use as X values for graphing. The dates are incremented as
+     * defined by the timescale e.g. "day" and start on the day of the startTimestamp
+     * and end on the day of the endTimestamp. Note this uses local time calendars for
+     * calculations NOT UTC.
      *
      * @param startTimestamp timestamp of where to start
      * @param endTimestamp   timestamp of where to end
@@ -467,6 +474,102 @@ public class AppstronautUtils {
                 return 270;
             default:
                 return 0;
+        }
+    }
+
+    /**
+     * Compresses an image file scaled down to a maximum width/height of 720 and a jpeg quality of
+     * 70. Saves in place.
+     *
+     * @param imageFile the image file to compress
+     * @see #compressImageFile(File, int, int)
+     */
+    public static void compressImageFile(File imageFile) {
+        compressImageFile(imageFile, 720, 70);
+    }
+
+    /**
+     * Compresses an image file scaled down to provided maximum width/height and jpeg quality.
+     * Saves in place.
+     *
+     * @param imageFile    the image file to compress
+     * @param maxDimension the maximum width/height dimension to scale down to
+     * @param jpegQuality  the jpeg quality to provide to the bitmap compressor
+     */
+    public static void compressImageFile(File imageFile, int maxDimension, int jpegQuality) {
+        if (imageFile == null || !imageFile.exists()) {
+            Log.e("ImageCompression", "File does not exist.");
+            return;
+        }
+
+        Bitmap bitmap = null;
+        Bitmap rotatedBitmap = null;
+        FileOutputStream fos = null;
+
+        try {
+            // Get original dimensions without loading full image
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(imageFile.getAbsolutePath(), options);
+            int originalWidth = options.outWidth;
+            int originalHeight = options.outHeight;
+
+            // Calculate downsampling factor
+            float sampleSize = 1;
+//            while ((originalWidth / sampleSize > MAX_DIMENSION) || (originalHeight / sampleSize > MAX_DIMENSION)) {
+//                sampleSize *= 2;
+//            }
+            if ((originalWidth > maxDimension) || (originalHeight > maxDimension)) {
+                int largestDimension = Math.max(originalWidth, originalHeight);
+                sampleSize = (float) largestDimension / (float) maxDimension;
+            }
+//            // Load scaled bitmap
+//            options.inSampleSize = sampleSize;
+//            options.inJustDecodeBounds = false;
+            bitmap = BitmapFactory.decodeFile(imageFile.getAbsolutePath(), null);
+
+            if (sampleSize > 1) {
+                bitmap = Bitmap.createScaledBitmap(bitmap, Math.round(originalWidth / sampleSize), Math.round(originalHeight / sampleSize), true);
+            }
+            // Read EXIF orientation
+            ExifInterface exif = new ExifInterface(imageFile.getAbsolutePath());
+            int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            int rotationDegrees = getRotationDegrees(orientation);
+
+            // Rotate if necessary
+            if (rotationDegrees != 0) {
+                Matrix matrix = new Matrix();
+                matrix.postRotate(rotationDegrees);
+                rotatedBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+            } else {
+                rotatedBitmap = bitmap;
+            }
+
+            // Write to the same file
+            fos = new FileOutputStream(imageFile);
+            if (sampleSize > 1) {
+                // no downsampling performed so assume no compression. We still want to be able to
+                // run this function to make sure EXIF rotation is applied to the image to preserve
+                // it for future uploads/zips etc. Lossless
+                rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, jpegQuality, fos);
+            } else {
+                rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, fos);
+            }
+
+            fos.flush();
+
+            Log.d("ImageCompression", "Compressed and saved: " + imageFile.getAbsolutePath());
+        } catch (IOException e) {
+            Log.e("ImageCompression", "Error compressing image", e);
+        } finally {
+            try {
+                if (fos != null) fos.close();
+            } catch (IOException ignored) {
+            }
+
+            if (bitmap != null && !bitmap.isRecycled()) bitmap.recycle();
+            if (rotatedBitmap != null && rotatedBitmap != bitmap && !rotatedBitmap.isRecycled())
+                rotatedBitmap.recycle();
         }
     }
 
