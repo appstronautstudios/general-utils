@@ -11,8 +11,10 @@ import com.appstronautstudios.generalutils.AppstronautUtils;
 import com.appstronautstudios.generalutils.Boxer;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.TimeZone;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -41,22 +43,39 @@ public class MainActivity extends AppCompatActivity {
         ArrayList<String> stringData = new ArrayList<>();
         stringData.add("capitalization \"TEST\": " + AppstronautUtils.capitalize("TEST"));
         stringData.add("capitalization \"test\": " + AppstronautUtils.capitalize("test"));
-        stringData.add("string join \"[\"1,,\",\"2\",\"three\",\"\",\"5.55\",\",\"]\": " + AppstronautUtils.safeJoin(List.of(new String[]{"1,,", "2", "three", "", "5.55", ","}), ","));
+        stringData.add(testSafeJoin(List.of("Apple", "Banana", "Orange"), ", "));
+        stringData.add(testSafeJoin(List.of("1,2", "3,4", "5"), ","));
+        stringData.add(testSafeJoin(List.of("Red", "Blue", "Red", "Green"), "-"));
+        stringData.add(testSafeJoin(java.util.Arrays.asList("A", null, "B"), "|"));
+        stringData.add(testSafeJoin(List.of("Start", "", "End"), "->"));
+        stringData.add(testSafeJoin(List.of("X", "Y", "Z"), null));
+        stringData.add(testSafeJoin(null, ","));
+        stringData.add(testSafeJoin(List.of("1,,", "2", "three", "", "5.55", ","), ","));
+        stringDataTV.setText(AppstronautUtils.safeJoin(stringData, "\n\n"));
         stringData.add("5.678, 2 decimals, not signed: " + AppstronautUtils.getNumberString(5.678, 2, false));
         stringData.add("5.678, 2 decimals, signed: " + AppstronautUtils.getNumberString(5.678, 2, true));
         stringData.add("-5.678, 2 decimals, signed: " + AppstronautUtils.getNumberString(-5.678, 2, true));
         stringData.add("0, 3 decimals, signed: " + AppstronautUtils.getNumberString(0, 3, true));
         stringData.add("0.01234, 3 decimals, not signed: " + AppstronautUtils.getNumberString(0.01234, 3, false));
         stringData.add("12345.6789, 0 decimals, not signed: " + AppstronautUtils.getNumberString(12345.6789, 0, false)); // 12346
+        stringData.add("Rounding 0.4: " + AppstronautUtils.getNumberString(0.4, 0, false));
+        stringData.add("Rounding 0.5: " + AppstronautUtils.getNumberString(0.5, 0, false));
         stringDataTV.setText(AppstronautUtils.safeJoin(stringData, "\n"));
 
-        // string data example
+        // date data example
         ArrayList<String> dateData = new ArrayList<>();
         long now = System.currentTimeMillis();
         Date today = new Date();
-        Date tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000); // next day
+
+        // Calculate tomorrow using Calendar to avoid DST issues
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(today);
+        cal.add(Calendar.DAY_OF_YEAR, 1);
+        Date tomorrow = cal.getTime();
+
         Date shiftedUTC = AppstronautUtils.utcDateToLocalMidnight(now);
         dateData.add("Current timestamp: " + now);
+        dateData.add("TimeZone: " + TimeZone.getDefault().getID());
         dateData.add("isInTimeWindow(now, now-1000, now+1000): " + AppstronautUtils.isInTimeWindow(now, now - 1000, now + 1000));
         dateData.add("isInTimeWindow(now, now+1000, now+2000): " + AppstronautUtils.isInTimeWindow(now, now + 1000, now + 2000));
         dateData.add("isSameDay(today, today) [same timestamp]: " + AppstronautUtils.isSameDay(today, today));
@@ -67,7 +86,10 @@ public class MainActivity extends AppCompatActivity {
         dateData.add("timestampToCsvDate(now): " + AppstronautUtils.timestampToCsvDate(now));
         dateData.add("timestampToSimpleDate(now): " + AppstronautUtils.timestampToSimpleDate(now));
         dateData.add("timestampToReadableDateString(now): " + AppstronautUtils.timestampToReadableDateString(now));
-        dateData.add("timestampToReadableTimeString(now): " + AppstronautUtils.timestampToReadableTimeString(now));
+        dateData.add("timestampToReadableTime12hr(now): " + AppstronautUtils.timestampToReadableTime12hr(now));
+        dateData.add("timestampToReadableTime24hr(now): " + AppstronautUtils.timestampToReadableTime24hr(now));
+        dateData.add("timestampToReadableTimeManual(now): " + AppstronautUtils.timestampToReadableTimeManual(now, true));
+        dateData.add("timestampToReadableTimeAuto(now): " + AppstronautUtils.timestampToReadableTimeAuto(this, now));
         String csvStr = "2025-11-03 07:00";
         dateData.add("csvDateToDateObject(\"" + csvStr + "\"): " + AppstronautUtils.csvDateToDateObject(csvStr));
         dateDataTV.setText(AppstronautUtils.safeJoin(dateData, "\n"));
@@ -108,6 +130,25 @@ public class MainActivity extends AppCompatActivity {
             showColours(AppstronautUtils.getColourSet(null, 10, false));
         });
         showColours(AppstronautUtils.getColourSet(null, 10, false));
+    }
+
+    private String testSafeJoin(List<String> input, String separator) {
+        String inputString;
+        if (input == null) {
+            inputString = "NULL";
+        } else {
+            List<String> quotedInputs = new ArrayList<>();
+            for (String s : input) {
+                quotedInputs.add(s == null ? "null" : "\"" + s + "\"");
+            }
+            inputString = "[" + String.join(", ", quotedInputs) + "]";
+        }
+
+        String result = AppstronautUtils.safeJoin(input, separator);
+
+        // Result format: safeJoin(["1,,", "2", ""] | ","): "12"
+        return String.format("safeJoin(%s | \"%s\"): \"%s\"",
+                inputString, (separator == null ? "null" : separator), result);
     }
 
     private void showColours(int[] colours) {

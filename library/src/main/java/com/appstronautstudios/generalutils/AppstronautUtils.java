@@ -336,6 +336,10 @@ public class AppstronautUtils {
         return outDate;
     }
 
+    public static boolean is24hrDevice(Context context) {
+        return android.text.format.DateFormat.is24HourFormat(context);
+    }
+
     public static String timestampToSimpleDate(long timestamp) {
         Date date = new Date(timestamp);
         String outDate = null;
@@ -358,12 +362,33 @@ public class AppstronautUtils {
         }
     }
 
-    public static String timestampToReadableTimeString(long timeStamp) {
+    public static String timestampToReadableTime12hr(long timeStamp) {
         try {
-            SimpleDateFormat fmtOut = new SimpleDateFormat("h:mm aa", Locale.getDefault());
+            SimpleDateFormat fmtOut = new SimpleDateFormat("h:mm a", Locale.getDefault());
             return fmtOut.format(new Date(timeStamp));
         } catch (Exception e) {
             return "";
+        }
+    }
+
+    public static String timestampToReadableTime24hr(long timeStamp) {
+        try {
+            SimpleDateFormat fmtOut = new SimpleDateFormat("HH:mm", Locale.getDefault());
+            return fmtOut.format(new Date(timeStamp));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static String timestampToReadableTimeAuto(Context context, long timeStamp) {
+        return timestampToReadableTimeManual(timeStamp, is24hrDevice(context));
+    }
+
+    public static String timestampToReadableTimeManual(long timestamp, boolean is24hr) {
+        if (is24hr) {
+            return timestampToReadableTime24hr(timestamp);
+        } else {
+            return timestampToReadableTime12hr(timestamp);
         }
     }
 
@@ -437,19 +462,31 @@ public class AppstronautUtils {
     /**
      * A string joined by the provided separator with duplicates removed. This function will also
      * delete any instances of the provided separator in the collection before joining. Order is
-     * preserved
+     * preserved. If the separator is null, it defaults to an empty string.
      *
      * @param collection collection of strings to join
      * @param separator  separator to join with
-     * @return joined string
+     * @return joined string, or empty string if collection is null/empty
      */
     public static String safeJoin(Collection<String> collection, String separator) {
+        if (collection == null || collection.isEmpty()) {
+            return "";
+        }
+
+        // Treat null separator as an empty string to prevent crashes
+        String safeSeparator = (separator == null) ? "" : separator;
+
         Set<String> safeSet = new LinkedHashSet<>();
         for (String setItem : collection) {
-            String safeSetItem = setItem.replace(separator, "");
+            // Skip null elements or treat them as empty strings
+            if (setItem == null) continue;
+
+            // Remove the separator from the string itself to prevent "phantom" separators
+            String safeSetItem = safeSeparator.isEmpty() ? setItem : setItem.replace(safeSeparator, "");
             safeSet.add(safeSetItem);
         }
-        return String.join(separator, safeSet);
+
+        return String.join(safeSeparator, safeSet);
     }
 
     public static void showSimpleAlert(Activity activity, String title, String message) {
