@@ -297,6 +297,46 @@ public class AppstronautUtils {
         return localCal.getTime();
     }
 
+    public static Date shiftUTCToLocalDatePreservingAllCalendarComponents(long utcTimestamp) {
+        // Step 1: Interpret the UTC timestamp as a UTC calendar
+        Calendar utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        utcCal.setTimeInMillis(utcTimestamp);
+
+        int year = utcCal.get(Calendar.YEAR);
+        int month = utcCal.get(Calendar.MONTH); // zero-based
+        int day = utcCal.get(Calendar.DAY_OF_MONTH);
+
+        // Step 2: Create a local calendar at 00:00:00 on that same date
+        Calendar localCal = Calendar.getInstance(); // local time zone
+        localCal.set(Calendar.YEAR, year);
+        localCal.set(Calendar.MONTH, month);
+        localCal.set(Calendar.DAY_OF_MONTH, day);
+        localCal.set(Calendar.HOUR_OF_DAY, 0);
+        localCal.set(Calendar.MINUTE, 0);
+        localCal.set(Calendar.SECOND, 0);
+        localCal.set(Calendar.MILLISECOND, 0);
+
+        return localCal.getTime();
+    }
+
+    /**
+     * Converts a local Date to UTC millis, keeping the same day/month/year.
+     * Useful for MaterialDatePicker which expects UTC 00:00:00.
+     */
+    public static long localDateToUTC(Date localDate) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(localDate);
+
+        // Set time to start of day in local timezone
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+
+        // Convert to UTC millis
+        return cal.getTimeInMillis() - cal.getTimeZone().getOffset(cal.getTimeInMillis());
+    }
+
     public static Date startOfDate(Date date) {
         Calendar calendar = Calendar.getInstance(); // local time zone
         calendar.setTime(date);
