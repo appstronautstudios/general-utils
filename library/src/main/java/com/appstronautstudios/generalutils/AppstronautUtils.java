@@ -64,43 +64,6 @@ public class AppstronautUtils {
     private static final DateTimeFormatter WEEK_FMT = DateTimeFormatter.ofPattern("YYYYww").withZone(java.time.ZoneId.systemDefault());
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyyMM").withZone(java.time.ZoneId.systemDefault());
 
-    public enum Timescale {
-        HOUR("hour", Calendar.HOUR_OF_DAY),
-        DAY("day", Calendar.DATE),
-        WEEK("week", Calendar.WEEK_OF_YEAR),
-        MONTH("month", Calendar.MONTH);
-
-        private final String key;
-        private final int calendarField;
-
-        Timescale(String key, int calendarField) {
-            this.key = key;
-            this.calendarField = calendarField;
-        }
-
-        public String getKey() {
-            return key;
-        }
-
-        public int getCalendarField() {
-            return calendarField;
-        }
-
-        /**
-         * Safely resolves a raw string key (e.g., from DB or API) to a Timescale.
-         */
-        public static Timescale fromKey(String key) {
-            if (key != null) {
-                for (Timescale scale : values()) {
-                    if (scale.key.equalsIgnoreCase(key)) {
-                        return scale;
-                    }
-                }
-            }
-            return DAY; // Safe default
-        }
-    }
-
     public static String getDeviceId(Context context) {
         return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
     }
@@ -418,6 +381,14 @@ public class AppstronautUtils {
         calendar.set(Calendar.MILLISECOND, 999);
 
         return calendar.getTime();
+    }
+
+    public static long endOfDateTimestamp(long dateMs) {
+        return java.time.Instant.ofEpochMilli(dateMs)
+                .atZone(java.time.ZoneId.systemDefault())
+                .with(java.time.LocalTime.MAX)
+                .toInstant()
+                .toEpochMilli();
     }
 
     public static String timestampToCsvDate(long timestamp) {
