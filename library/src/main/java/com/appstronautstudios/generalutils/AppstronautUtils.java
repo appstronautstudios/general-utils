@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -16,9 +17,13 @@ import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
 import android.telephony.TelephonyManager;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
 import android.webkit.MimeTypeMap;
+import android.widget.EditText;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -33,6 +38,14 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -45,6 +58,48 @@ import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
 public class AppstronautUtils {
+
+    private static final DateTimeFormatter HOUR_FMT = DateTimeFormatter.ofPattern("yyyyMMddHH").withZone(java.time.ZoneId.systemDefault());
+    private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("yyyyMMdd").withZone(java.time.ZoneId.systemDefault());
+    private static final DateTimeFormatter WEEK_FMT = DateTimeFormatter.ofPattern("YYYYww").withZone(java.time.ZoneId.systemDefault());
+    private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyyMM").withZone(java.time.ZoneId.systemDefault());
+
+    public enum Timescale {
+        HOUR("hour", Calendar.HOUR_OF_DAY),
+        DAY("day", Calendar.DATE),
+        WEEK("week", Calendar.WEEK_OF_YEAR),
+        MONTH("month", Calendar.MONTH);
+
+        private final String key;
+        private final int calendarField;
+
+        Timescale(String key, int calendarField) {
+            this.key = key;
+            this.calendarField = calendarField;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public int getCalendarField() {
+            return calendarField;
+        }
+
+        /**
+         * Safely resolves a raw string key (e.g., from DB or API) to a Timescale.
+         */
+        public static Timescale fromKey(String key) {
+            if (key != null) {
+                for (Timescale scale : values()) {
+                    if (scale.key.equalsIgnoreCase(key)) {
+                        return scale;
+                    }
+                }
+            }
+            return DAY; // Safe default
+        }
+    }
 
     public static String getDeviceId(Context context) {
         return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
@@ -69,6 +124,18 @@ public class AppstronautUtils {
             e.printStackTrace();
         }
         return version;
+    }
+
+    public static int getVersionCode(Context context) {
+        int versionCode = 0;
+        try {
+            PackageInfo pInfo = context.getPackageManager().getPackageInfo(context.getPackageName(), 0);
+            versionCode = pInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return versionCode;
     }
 
     public static String capitalize(String s) {
@@ -196,11 +263,11 @@ public class AppstronautUtils {
      *
      * @param startTimestamp timestamp of where to start
      * @param endTimestamp   timestamp of where to end
-     * @param timeScale      timescale to skip by. Valid values are "day", "month", "year"
+     * @param timeScale      timescale to iterate with
      * @param fake           create a fake grouping irrespective of other entered data
      * @return ArrayList of Dates from the start of the startTimestamp day to end of the endTimestamp day
      */
-    public static ArrayList<Date> setupNewXVals(long startTimestamp, long endTimestamp, String timeScale, boolean fake) {
+    public static ArrayList<Date> setupNewXVals(long startTimestamp, long endTimestamp, Timescale timeScale, boolean fake) {
         ArrayList<Date> xValsRet = new ArrayList<>();
 
         if (fake) {
@@ -218,11 +285,16 @@ public class AppstronautUtils {
             return xValsRet;
         }
 
+        // Default null defensive check
+        Timescale scale = (timeScale != null) ? timeScale : Timescale.DAY;
+
         Calendar beginCalendar = Calendar.getInstance();
         Calendar finishCalendar = Calendar.getInstance();
 
         beginCalendar.setTimeInMillis(startTimestamp);
-        beginCalendar.set(Calendar.HOUR_OF_DAY, 0);
+        if (scale != Timescale.HOUR) {
+            beginCalendar.set(Calendar.HOUR_OF_DAY, 0);
+        }
         beginCalendar.set(Calendar.MINUTE, 0);
         beginCalendar.set(Calendar.SECOND, 0);
         beginCalendar.set(Calendar.MILLISECOND, 0);
@@ -236,22 +308,7 @@ public class AppstronautUtils {
         // create xVals at intervals until we're at end date
         while (beginCalendar.getTimeInMillis() <= finishCalendar.getTimeInMillis()) {
             xValsRet.add(beginCalendar.getTime());
-
-            switch (timeScale) {
-                case "day":
-                    beginCalendar.add(Calendar.DATE, 1);
-                    break;
-                case "week":
-                    beginCalendar.add(Calendar.WEEK_OF_YEAR, 1);
-                    break;
-                case "month":
-                    beginCalendar.add(Calendar.MONTH, 1);
-                    break;
-                default:
-                    // better to crash if client supplies incorrect timescale than silently return
-                    // month or something as a default
-                    throw new IllegalArgumentException("Invalid timeScale: " + timeScale);
-            }
+            beginCalendar.add(scale.getCalendarField(), 1);
         }
 
         return xValsRet;
@@ -432,6 +489,60 @@ public class AppstronautUtils {
         }
     }
 
+    public static String timestampToKeyString(long timeStamp, Timescale timescale) {
+        Instant instant = Instant.ofEpochMilli(timeStamp);
+        Timescale scale = (timescale != null) ? timescale : Timescale.DAY;
+
+        switch (scale) {
+            case HOUR:
+                return HOUR_FMT.format(instant);
+            case WEEK:
+                return WEEK_FMT.format(instant);
+            case MONTH:
+                return MONTH_FMT.format(instant);
+            case DAY:
+            default:
+                return DAY_FMT.format(instant);
+        }
+    }
+
+    public static long dateKeyStringToTimestamp(String keyedDate, Timescale timescale) {
+        Timescale scale = (timescale != null) ? timescale : Timescale.DAY;
+
+        switch (scale) {
+            case HOUR:
+                return LocalDateTime.parse(keyedDate, HOUR_FMT)
+                        .atZone(ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli();
+
+            case WEEK:
+                // Appends day of week (1 = Monday) so LocalDate can resolve the full date from "YYYYww"
+                return LocalDate.parse(keyedDate + "1",
+                                new DateTimeFormatterBuilder()
+                                        .append(WEEK_FMT)
+                                        .appendValue(ChronoField.DAY_OF_WEEK, 1)
+                                        .toFormatter())
+                        .atStartOfDay(ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli();
+
+            case MONTH:
+                return YearMonth.parse(keyedDate, MONTH_FMT)
+                        .atDay(1)
+                        .atStartOfDay(ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli();
+
+            case DAY:
+            default:
+                return LocalDate.parse(keyedDate, DAY_FMT)
+                        .atStartOfDay(ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli();
+        }
+    }
+
     public static Date csvDateToDateObject(String dateString) {
         Date outDate = null;
         try {
@@ -497,6 +608,19 @@ public class AppstronautUtils {
         }
 
         return TimeUnit.MILLISECONDS.toDays(System.currentTimeMillis() - installTs);
+    }
+
+    public static long getHoursSinceInstall(Context context) {
+        long installTs = System.currentTimeMillis();
+        PackageManager packMan = context.getPackageManager();
+        try {
+            PackageInfo pkgInfo = packMan.getPackageInfo(context.getPackageName(), 0);
+            installTs = pkgInfo.firstInstallTime;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return TimeUnit.MILLISECONDS.toHours(System.currentTimeMillis() - installTs);
     }
 
     /**
@@ -677,7 +801,6 @@ public class AppstronautUtils {
         return sanitizedString;
     }
 
-
     public static String getSystemLocale(Context context) {
         try {
             final TelephonyManager tm = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
@@ -772,5 +895,75 @@ public class AppstronautUtils {
         DecimalFormat myFormatter = new DecimalFormat(pattern.toString());
         myFormatter.setDecimalFormatSymbols(DFS);
         return myFormatter;
+    }
+
+    public static int getColorFromAttr(Context context, int attr) {
+        TypedValue typedValue = new TypedValue();
+        Resources.Theme theme = context.getTheme(); // Or context.getTheme()
+
+        // Resolve the attribute into the typedValue
+        if (theme.resolveAttribute(attr, typedValue, true)) {
+            // If the attribute is a color, it's stored in typedValue.data
+            return typedValue.data;
+        }
+
+        // Fallback if the attribute isn't found
+        return Color.TRANSPARENT;
+    }
+
+    public static boolean isActivityUsable(Activity act) {
+        return act != null &&
+                !act.isFinishing() &&
+                !act.isDestroyed();
+    }
+
+    public static void removeAllTextChangedListeners(EditText editText) {
+        Editable text = editText.getText();
+        if (text != null) {
+            // Find all TextWatcher spans currently attached to the Editable text buffer
+            TextWatcher[] watchers = text.getSpans(0, text.length(), TextWatcher.class);
+
+            if (watchers != null) {
+                for (TextWatcher watcher : watchers) {
+                    editText.removeTextChangedListener(watcher);
+                }
+            }
+        }
+    }
+
+    public static String truncate(String text, int maxLength) {
+        if (text == null || text.length() <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + "...";
+    }
+
+    public static float calculatePercentageOfTotal(int fractionCount, int totalCount) {
+        float percentage;
+        if (totalCount > 0) {
+            percentage = ((float) fractionCount / (float) totalCount) * 100.0f;
+        } else {
+            percentage = 0;
+        }
+        return percentage;
+    }
+
+    public static double calculatePercentageChange(float prevDelta, float currentDelta) {
+        if (Float.compare(prevDelta, currentDelta) == 0) {
+            return 0.0;
+        } else if (prevDelta > 0) {
+            return ((currentDelta - prevDelta) / prevDelta) * 100.0;
+        } else {
+            return Double.NaN;
+        }
+    }
+
+    public static double calculatePercentageChange(double prevDelta, double currentDelta) {
+        // Uses Double.compare instead of Float.compare
+        if (Double.compare(prevDelta, currentDelta) == 0) {
+            return 0.0;
+        } else if (prevDelta > 0) {
+            return ((currentDelta - prevDelta) / prevDelta) * 100.0;
+        } else {
+            return Double.NaN;
+        }
     }
 }
